@@ -1,0 +1,188 @@
+"""
+Enhanced Quarto Course Generator
+--------------------------------------------------------
+Creates a full Quarto + Reveal.js course structure.
+
+Key Features:
+- External template system (template_lecture.txt)
+- Multi-theme CSS support
+- Clean lecture hierarchy
+- Safe rendering engine
+- Cross-platform (Windows/macOS/Linux)
+
+Author: Dr. Mohamed Abdelhady
+"""
+
+from pathlib import Path
+import re
+
+
+# ============================================================
+# CONFIG
+# ============================================================
+
+AUTHOR = "Dr. Mohamed Abdelhady"
+TEMPLATE_FILE = "template_lecture.txt"
+
+THEMES = [
+    "academic.css",
+    "dark.css",
+    "darpa.css",
+    "minimal.css",
+    "robotics.css"
+]
+
+
+# ============================================================
+# UTILITIES
+# ============================================================
+
+def sanitize(name: str) -> str:
+    return re.sub(r"[^a-zA-Z0-9_-]+", "_", name.strip())
+
+
+def read_template(path: Path) -> str:
+    if not path.exists():
+        raise FileNotFoundError(f"Template not found: {path}")
+    return path.read_text(encoding="utf-8")
+
+
+def render_template(template: str, **kwargs) -> str:
+    return template.format(**kwargs)
+
+
+# ============================================================
+# INPUT
+# ============================================================
+
+course_name = input("Enter course name: ").strip()
+num_lectures = int(input("Enter number of lectures: ").strip())
+
+course_dir = Path(sanitize(course_name))
+course_dir.mkdir(exist_ok=True)
+
+print("\n[INFO] Creating course:", course_dir)
+
+
+# ============================================================
+# ROOT STRUCTURE
+# ============================================================
+
+folders = [
+    course_dir / "shared" / "styles",
+    course_dir / "video_pipeline" / "downloaded",
+    course_dir / "video_pipeline" / "processed",
+    course_dir / "video_pipeline" / "thumbnails",
+    course_dir / "build",
+]
+
+for f in folders:
+    f.mkdir(parents=True, exist_ok=True)
+
+
+# ============================================================
+# CREATE CSS THEMES (PLACEHOLDER STYLE)
+# ============================================================
+
+styles_dir = course_dir / "shared" / "styles"
+
+base_css = """
+.reveal {
+    font-family: Arial, sans-serif;
+}
+"""
+
+for theme in THEMES:
+    (styles_dir / theme).write_text(base_css, encoding="utf-8")
+
+
+# ============================================================
+# SHARED FILES
+# ============================================================
+
+(course_dir / "shared" / "macros.tex").write_text(
+r"""
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\x}{\mathbf{x}}
+\newcommand{\u}{\mathbf{u}}
+""",
+encoding="utf-8"
+)
+
+(course_dir / "shared" / "reveal_custom.js").write_text(
+"console.log('Reveal loaded');",
+encoding="utf-8"
+)
+
+
+# ============================================================
+# VIDEO CSV
+# ============================================================
+
+(course_dir / "video_list.csv").write_text(
+"url,start,end\n",
+encoding="utf-8"
+)
+
+
+# ============================================================
+# TEMPLATE LOAD
+# ============================================================
+
+template_path = Path(TEMPLATE_FILE)
+template_text = read_template(template_path)
+
+
+# ============================================================
+# CREATE LECTURES
+# ============================================================
+
+print("[INFO] Generating lectures...")
+
+for i in range(1, num_lectures + 1):
+
+    lecture_name = f"Lecture_{i:02d}"
+    lecture_dir = course_dir / lecture_name
+
+    # folders
+    for sub in ["images", "videos", "code", "generated"]:
+        (lecture_dir / sub).mkdir(parents=True, exist_ok=True)
+
+    lecture_title = f"Lecture {i:02d}"
+
+    # render template safely
+    qmd = render_template(
+        template_text,
+        course_name=course_name,
+        lecture_title=lecture_title,
+        author=AUTHOR
+    )
+
+    # write file
+    (lecture_dir / f"lecture_{i:02d}.qmd").write_text(qmd, encoding="utf-8")
+
+
+# ============================================================
+# README
+# ============================================================
+
+readme = f"""# {course_name}
+
+Generated Quarto Course
+
+## Run
+
+quarto preview Lecture_01/lecture_01.qmd
+"""
+
+(course_dir / "README.md").write_text(readme, encoding="utf-8")
+
+
+# ============================================================
+# DONE
+# ============================================================
+
+print("\n===================================")
+print("[SUCCESS] Course generated")
+print("Location:", course_dir.resolve())
+print("===================================")
